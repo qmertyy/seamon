@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rust Sea Spy</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        .ship-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            max-width: 300px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .stats {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="ship-info" class="ship-info"></div>
+    <div id="stats" class="stats">Ships: <span id="ship-count">0</span></div>
+
+    <script>
+        let map;
+        let shipsSource;
+        let lastBounds = null;
+        let shipCount = 0;
+
+        // Initialize the map
+        function initMap() {
+            map = new maplibregl.Map({
+                container: 'map',
+                style: {
+                    version: 8,
+                    sources: {
+                        'openseamap': {
+                            type: 'raster',
+                            tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'],
+                            tileSize: 256,
+                            attribution: '© OpenSeaMap contributors'
+                        },
+                        'openstreetmap': {
+                            type: 'raster',
+                            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                            tileSize: 256,
+                            attribution: '© OpenStreetMap contributors'
+                        }
+                    },
+                    layers: [
+                        {
+                            id: 'openstreetmap',
+                            type: 'raster',
+                            source: 'openstreetmap',
+                            minzoom: 0,
+                            maxzoom: 18
+                        },
+                        {
+                            id: 'openseamap',
+                            type: 'raster',
+                            source: 'openseamap',
+                            minzoom: 0,
+                            maxzoom: 18
+                        }
+                    ]
+                },
+                center: [0, 20], // Start centered on the Atlantic
+                zoom: 3,
+                minZoom: 2,
+                maxZoom: 18
+            });
+
+            map.on('load', () => {
+                console.log('Map loaded successfully');
+
+                // Add ships source
+                map.addSource('ships', {
+                    type: 'geojson',
+                    data: {
+                        type: 'FeatureCollection',
+                        features: []
+                    }
+                });
+
+                console.log('Ships source added');
+
+                // Add ships layer with triangle symbols
+                map.addLayer({
+                    id: 'ships',
+                    type: 'circle',
+                    source: 'ships',
+                    paint: {
+                        'circle-radius': [
+                            'interpolate',
+                            ['linear'],
+                            ['zoom'],
+                            3, 2,
+                            8, 4,
+                            12, 6
+                        ],
+                        'circle-color': [
+                            'case',
+                            ['>', ['get', 'speed'], 0.5], '#00ff00', // Green for moving
+                            '#ff0000' // Red for stationary
+                        ],
+                        'circle-opacity': [
+                            'case',
+                            ['<', ['get', 'age'], 3600], 1.0, // Full opacity for recent
+                            0.6 // Faded for old
+                        ],
+                        'circle-stroke-width': 1,
+                        'circle-stroke-color': '#000000'
+                    }
+                });
+
+                console.log('Ships layer added');
+
+                // Add click handler for ships
+                map.on('click', 'ships', (e) => {
+                    const feature = e.features[0];
+                    showShipInfo(feature.properties);
+                });
+
+                map.on('mouseenter', 'ships', () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+
+                map.on('mouseleave', 'ships', () => {
+                    map.getCanvas().style.cursor = '';
+                    hideShipInfo();
+                });
+
+                // Start loading ships
+                loadShips();
+                
+                // Update ships when map moves
+                map.on('moveend', loadShips);
+                
+                // Periodically update ships
+                setInterval(loadShips, 10000); // Every 10 seconds
+            });
+        }
+
+        async function loadShips() {
+            try {
+                const bounds = map.getBounds();
+                const sw = bounds.getSouthWest();
+                const ne = bounds.getNorthEast();
+                
+                // Only update if bounds changed significantly
+                if (lastBounds && boundsEqual(bounds, lastBounds, 0.01)) {
+                    return;
+                }
+                lastBounds = bounds;
+
+                const response = await fetch(
+                    `/api/ships/${sw.lat}/${sw.lng}/${ne.lat}/${ne.lng}`
+                );
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const ships = await response.json();
+                
+                // Convert ships to GeoJSON
+                const features = ships.map(ship => ({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [ship.lng, ship.lat]
+                    },
+                    properties: {
+                        mmsi: ship.mmsi,
+                        name: ship.name || `Ship ${ship.mmsi}`,
+                        heading: ship.heading || 0,
+                        speed: ship.speed || 0,
+                        ship_type: ship.ship_type || 0,
+                        last_update: ship.last_update,
+                        age: Math.floor(Date.now() / 1000) - ship.last_update
+                    }
+                }));
+
+                console.log(`Processing ${ships.length} ships`);
+                console.log('Sample ship:', ships[0]);
+                console.log('Sample feature:', features[0]);
+
+                // Update ships source
+                map.getSource('ships').setData({
+                    type: 'FeatureCollection',
+                    features: features
+                });
+
+                // Update ship count
+                shipCount = features.length;
+                document.getElementById('ship-count').textContent = shipCount;
+                
+                console.log(`Loaded ${shipCount} ships with ${features.length} features`);
+            } catch (error) {
+                console.error('Error loading ships:', error);
+            }
+        }
+
+        function showShipInfo(ship) {
+            const info = document.getElementById('ship-info');
+            const ageMinutes = Math.floor(ship.age / 60);
+            const ageHours = Math.floor(ageMinutes / 60);
+            const ageDays = Math.floor(ageHours / 24);
+            
+            let ageText = '';
+            if (ageDays > 0) {
+                ageText = `${ageDays}d ${ageHours % 24}h ago`;
+            } else if (ageHours > 0) {
+                ageText = `${ageHours}h ${ageMinutes % 60}m ago`;
+            } else {
+                ageText = `${ageMinutes}m ago`;
+            }
+
+            info.innerHTML = `
+                <strong>${ship.name}</strong><br>
+                MMSI: ${ship.mmsi}<br>
+                Speed: ${ship.speed.toFixed(1)} knots<br>
+                Heading: ${ship.heading}°<br>
+                Type: ${ship.ship_type}<br>
+                Last seen: ${ageText}
+            `;
+            info.style.display = 'block';
+        }
+
+        function hideShipInfo() {
+            const info = document.getElementById('ship-info');
+            info.style.display = 'none';
+        }
+
+        function boundsEqual(bounds1, bounds2, tolerance) {
+            const sw1 = bounds1.getSouthWest();
+            const ne1 = bounds1.getNorthEast();
+            const sw2 = bounds2.getSouthWest();
+            const ne2 = bounds2.getNorthEast();
+            
+            return Math.abs(sw1.lat - sw2.lat) < tolerance &&
+                   Math.abs(sw1.lng - sw2.lng) < tolerance &&
+                   Math.abs(ne1.lat - ne2.lat) < tolerance &&
+                   Math.abs(ne1.lng - ne2.lng) < tolerance;
+        }
+
+        // Initialize the map when the page loads
+        initMap();
+    </script>
+</body>
+</html>
