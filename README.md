@@ -6,6 +6,8 @@ A minimal ship tracking application built in Rust that displays real-time AIS (A
 
 ## Demo
 
+./assets/showcase.mp4
+
 <video width="100%" controls>
   <source src="assets/showcase.mp4" type="video/mp4">
   Your browser does not support the video tag.
