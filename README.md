@@ -1,6 +1,16 @@
-# Rust Sea Spy
+# Rust Sea Watch
 
 A minimal ship tracking application built in Rust that displays real-time AIS (Automatic Identification System) data on a map using MapLibre GL with OpenStreetMap and OpenSeaMap layers.
+
+
+
+## Demo
+
+<video width="100%" controls>
+  <source src="assets/showcase.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 
 ## Features
 
@@ -20,15 +30,11 @@ A minimal ship tracking application built in Rust that displays real-time AIS (A
 
 ## Setup
 
-1. **Clone or create the project:**
-   ```bash
-   cargo new rust-seaspy
-   cd rust-seaspy
-   ```
+
 
 2. **Set up the project structure:**
    ```
-   rust-seaspy/
+   seawatch/
    ├── Cargo.toml
    ├── src/
    │   ├── main.rs
@@ -109,17 +115,7 @@ The application uses sensible defaults but can be customized:
 - **Update frequency**: Frontend updates every 10 seconds
 - **Geohash precision**: 6 characters for spatial indexing
 
-## Development Notes
 
-This is a minimal working example. For production use, consider:
-
-- Persistent storage (PostgreSQL with PostGIS)
-- Better error handling and logging
-- Rate limiting and authentication
-- Ship history tracking
-- More sophisticated geohash range queries
-- WebSocket updates instead of polling
-- Clustering for high-density areas
 
 ## Dependencies
 

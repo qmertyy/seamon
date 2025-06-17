@@ -33,17 +33,12 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing with proper configuration
+  
     use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
-    // Get the current crate's name from Cargo manifest.
-    // Hyphens in crate names are replaced with underscores for Rust module paths
+   
     let crate_name = env!("CARGO_PKG_NAME").replace('-', "_");
 
-    // Configure the EnvFilter:
-    // 1. Start with directives from RUST_LOG environment variable, if set.
-    // 2. If RUST_LOG is not set or invalid, default to "info" for all crates.
-    // 3. Add/override a directive to set your crate's log level to "debug".
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info")) // Default to 'info' if RUST_LOG is unset/invalid
         .add_directive(format!("{}={}", crate_name, "debug").parse().unwrap());
@@ -54,7 +49,7 @@ async fn main() -> Result<()> {
         .init();            // Initialize the subscriber
 
     // Test logs
-    info!("Starting Rust Sea Spy - crate: '{}'", crate_name);
+    info!("Starting Rust Seawatch - crate: '{}'", crate_name);
     debug!("Debug logging enabled for {}", crate_name);
     let ships = Arc::new(RwLock::new(ShipCache::new()));
     let app_state = AppState {

@@ -96,8 +96,7 @@ impl ShipCache {
         let sw_geohash = geohash::encode(geohash::Coord { x: sw_lng, y: sw_lat }, 6).unwrap_or_default();
         let ne_geohash = geohash::encode(geohash::Coord { x: ne_lng, y: ne_lat }, 6).unwrap_or_default();
         
-        // For simplicity, we'll check all ships that might be in nearby geohash cells
-        // In a production system, you'd want more sophisticated geohash range queries
+      
         let mut candidate_mmsis = std::collections::HashSet::new();
         
         for (geohash_prefix, mmsis) in &self.geohash_index {
@@ -124,7 +123,7 @@ impl ShipCache {
     }
 }
 
-// Simple geohash overlap check - in production you'd want more sophisticated logic
+
 fn geohash_overlaps_bbox(geohash_prefix: &str, sw_lat: f64, sw_lng: f64, ne_lat: f64, ne_lng: f64) -> bool {
     if let Ok((coord, lat_err, lng_err)) = geohash::decode(geohash_prefix) {
         let lat = coord.y;
