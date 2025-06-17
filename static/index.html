@@ -1,46 +1,204 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Rust Sea Spy</title>
+    <title>Maritime Map with Custom Polygons</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
         
         .ship-info {
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 8px;
             font-size: 12px;
             max-width: 300px;
             display: none;
             z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border: 1px solid #ccc;
         }
         
         .stats {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 8px;
             font-size: 14px;
             z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border: 1px solid #ccc;
+        }
+        
+        .layer-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border: 1px solid #ccc;
+            min-width: 200px;
+        }
+        
+        .layer-controls h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .layer-control {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+        }
+        
+        .layer-control input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .layer-control label {
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border: 1px solid #ccc;
+            min-width: 180px;
+        }
+        
+        .legend h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 12px;
+            margin-right: 8px;
+            border: 1px solid #666;
+        }
+        
+        .popup-content {
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        .popup-content strong {
+            color: #333;
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    
     <div id="ship-info" class="ship-info"></div>
-    <div id="stats" class="stats">Ships: <span id="ship-count">0</span></div>
+    
+    <div id="stats" class="stats">
+        Ships: <span id="ship-count">0</span><br>
+        Maritime Areas: <span id="area-count">Loading...</span>
+    </div>
+    
+    <div class="layer-controls">
+        <h4>Map Layers</h4>
+        
+        <div class="layer-control">
+            <input type="checkbox" id="toggle-openstreetmap" checked>
+            <label for="toggle-openstreetmap">OpenStreetMap</label>
+        </div>
+        
+        <div class="layer-control">
+            <input type="checkbox" id="toggle-openseamap" checked>
+            <label for="toggle-openseamap">OpenSeaMap</label>
+        </div>
+        
+        <div class="layer-control">
+            <input type="checkbox" id="toggle-movement" checked>
+            <label for="toggle-movement">Movement Areas</label>
+        </div>
+        
+        <div class="layer-control">
+            <input type="checkbox" id="toggle-stopping" checked>
+            <label for="toggle-stopping">Stopping Areas</label>
+        </div>
+        
+        <div class="layer-control">
+            <input type="checkbox" id="toggle-maneuver" checked>
+            <label for="toggle-maneuver">Maneuver Areas</label>
+        </div>
+    </div>
+    
+        <div class="legend">
+            <h4>Map Legend</h4>
+            
+            <div style="margin-bottom: 15px;">
+                <strong>Ships</strong><br>
+                <div class="legend-item">
+                    <div style="width: 20px; height: 12px; background: linear-gradient(45deg, #16a34a 50%, transparent 50%); margin-right: 8px; border: 1px solid #666;"></div>
+                    <span>Moving Ships</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 20px; height: 12px; background: linear-gradient(45deg, #2563eb 50%, transparent 50%); margin-right: 8px; border: 1px solid #666;"></div>
+                    <span>Stationary Ships</span>
+                </div>
+            </div>
+            
+            <div>
+                <strong>Maritime Areas</strong><br>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #fb923c;"></div>
+                    <span>Movement Areas</span>
+                </div>
+                
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #f59e0b;"></div>
+                    <span>Movement (Maneuver)</span>
+                </div>
+                
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #3b82f6;"></div>
+                    <span>Stopping Areas</span>
+                </div>
+                
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #8b5cf6;"></div>
+                    <span>Stopping (Maneuver)</span>
+                </div>
+                
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: transparent; border: 2px solid #dc2626;"></div>
+                    <span>Maneuver Outline</span>
+                </div>
+            </div>
+        </div>
 
     <script>
         let map;
@@ -48,27 +206,42 @@
         let lastBounds = null;
         let shipCount = 0;
 
-        // Initialize the map
+        // Simplified Maritime Map Configuration
         function initMap() {
             map = new maplibregl.Map({
                 container: 'map',
                 style: {
                     version: 8,
+                    glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
                     sources: {
+                        // OpenStreetMap base layer
+                        'openstreetmap': {
+                            type: 'raster',
+                            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                            tileSize: 256,
+                            attribution: '© OpenStreetMap contributors'
+                        },
+                        
+                        // OpenSeaMap overlay
                         'openseamap': {
                             type: 'raster',
                             tiles: ['https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png'],
                             tileSize: 256,
                             attribution: '© OpenSeaMap contributors'
                         },
-                        'openstreetmap': {
-                            type: 'raster',
-                            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-                            tileSize: 256,
-                            attribution: '© OpenStreetMap contributors'
+                        
+                        // Custom maritime polygons
+                        'maritime-tiles': {
+                            type: 'vector',
+                            tiles: ['http://localhost:65000/images/{z}/{x}/{y}.pbf'],
+                            minzoom: 0,
+                            maxzoom: 12,
+                            tileSize: 512,
+                            scheme: 'xyz'
                         }
                     },
                     layers: [
+                        // Base OpenStreetMap layer
                         {
                             id: 'openstreetmap',
                             type: 'raster',
@@ -76,23 +249,34 @@
                             minzoom: 0,
                             maxzoom: 18
                         },
+                        
+                        // OpenSeaMap overlay
                         {
                             id: 'openseamap',
                             type: 'raster',
                             source: 'openseamap',
                             minzoom: 0,
                             maxzoom: 18
-                        }
+                        },
+                        
+                        // Maritime polygon layers
+                        ...createMaritimePolygonLayers()
                     ]
                 },
-                center: [0, 20], // Start centered on the Atlantic
+                center: [0, 20],
                 zoom: 3,
                 minZoom: 2,
                 maxZoom: 18
             });
 
+            // Make map available globally
+            window.map = map;
+
             map.on('load', () => {
                 console.log('Map loaded successfully');
+
+                // Create ship icon
+                createShipIcon();
 
                 // Add ships source
                 map.addSource('ships', {
@@ -103,53 +287,45 @@
                     }
                 });
 
-                console.log('Ships source added');
-
-                // Add ships layer with triangle symbols
                 map.addLayer({
                     id: 'ships',
-                    type: 'circle',
+                    type: 'symbol',
                     source: 'ships',
-                    paint: {
-                        'circle-radius': [
+                    layout: {
+                        'icon-image': [
+                            'case',
+                            ['>', ['get', 'speed'], 0.5], 'ship-icon-moving', // Green for moving
+                            'ship-icon' // Blue for stationary
+                        ],
+                        'icon-size': [
                             'interpolate',
                             ['linear'],
                             ['zoom'],
-                            3, 2,
-                            8, 4,
-                            12, 6
+                            3, 0.4,
+                            8, 0.6,
+                            12, 1.0
                         ],
-                        'circle-color': [
-                            'case',
-                            ['>', ['get', 'speed'], 0.5], '#00ff00', // Green for moving
-                            '#ff0000' // Red for stationary
-                        ],
-                        'circle-opacity': [
+                        'icon-rotate': ['get', 'heading'],
+                        'icon-rotation-alignment': 'map',
+                        'icon-allow-overlap': true,
+                        'icon-ignore-placement': true
+                    },
+                    paint: {
+                        'icon-opacity': [
                             'case',
                             ['<', ['get', 'age'], 3600], 1.0, // Full opacity for recent
                             0.6 // Faded for old
-                        ],
-                        'circle-stroke-width': 1,
-                        'circle-stroke-color': '#000000'
+                        ]
                     }
                 });
 
                 console.log('Ships layer added');
-
-                // Add click handler for ships
-                map.on('click', 'ships', (e) => {
-                    const feature = e.features[0];
-                    showShipInfo(feature.properties);
-                });
-
-                map.on('mouseenter', 'ships', () => {
-                    map.getCanvas().style.cursor = 'pointer';
-                });
-
-                map.on('mouseleave', 'ships', () => {
-                    map.getCanvas().style.cursor = '';
-                    hideShipInfo();
-                });
+                
+                // Setup event handlers
+                setupLayerControls();
+                setupClickHandlers();
+                setupHoverEffects();
+                setupShipHandlers();
 
                 // Start loading ships
                 loadShips();
@@ -162,6 +338,256 @@
             });
         }
 
+        // Create ship icon as triangle with rectangle base
+        function createShipIcon() {
+            // Create stationary ship icon (blue)
+            const size = 32;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Clear and set up context
+            ctx.clearRect(0, 0, size, size);
+            ctx.save();
+            ctx.translate(size / 2, size / 2);
+            
+            // Ship dimensions
+            const hullWidth = 8;
+            const hullHeight = 14;
+            
+            // Draw ship hull (rectangle)
+            ctx.fillStyle = '#2563eb';
+            ctx.strokeStyle = '#1e40af';
+            ctx.lineWidth = 1;
+            ctx.fillRect(-hullWidth/2, -2, hullWidth, hullHeight);
+            ctx.strokeRect(-hullWidth/2, -2, hullWidth, hullHeight);
+            
+            // Draw ship bow (triangle pointing up)
+            ctx.fillStyle = '#1d4ed8';
+            ctx.beginPath();
+            ctx.moveTo(0, -8);  // Tip
+            ctx.lineTo(-hullWidth/2, -2);  // Left
+            ctx.lineTo(hullWidth/2, -2);   // Right
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.restore();
+            
+            // Add image data to map
+            const imageData = ctx.getImageData(0, 0, size, size);
+            map.addImage('ship-icon', imageData);
+            
+            // Create moving ship icon (green)
+            const movingCanvas = document.createElement('canvas');
+            movingCanvas.width = size;
+            movingCanvas.height = size;
+            const movingCtx = movingCanvas.getContext('2d');
+            
+            movingCtx.clearRect(0, 0, size, size);
+            movingCtx.save();
+            movingCtx.translate(size / 2, size / 2);
+            
+            // Draw moving ship hull (rectangle)
+            movingCtx.fillStyle = '#16a34a';
+            movingCtx.strokeStyle = '#15803d';
+            movingCtx.lineWidth = 1;
+            movingCtx.fillRect(-hullWidth/2, -2, hullWidth, hullHeight);
+            movingCtx.strokeRect(-hullWidth/2, -2, hullWidth, hullHeight);
+            
+            // Draw moving ship bow (triangle)
+            movingCtx.fillStyle = '#15803d';
+            movingCtx.beginPath();
+            movingCtx.moveTo(0, -8);
+            movingCtx.lineTo(-hullWidth/2, -2);
+            movingCtx.lineTo(hullWidth/2, -2);
+            movingCtx.closePath();
+            movingCtx.fill();
+            movingCtx.stroke();
+            
+            movingCtx.restore();
+            
+            // Add moving image data to map
+            const movingImageData = movingCtx.getImageData(0, 0, size, size);
+            map.addImage('ship-icon-moving', movingImageData);
+        }
+        function createMaritimePolygonLayers() {
+            return [
+                // Movement areas
+                {
+                    'id': 'movement-areas',
+                    'type': 'fill',
+                    'source': 'maritime-tiles',
+                    'source-layer': 'merged_polygons',
+                    'filter': ['==', 'polygon_type', 'movement'],
+                    'paint': {
+                        'fill-color': ['case', ['==', ['get', 'maneuver_area'], true], '#f59e0b', '#fb923c'],
+                        'fill-opacity': 0.6
+                    }
+                },
+                
+                // Stopping areas
+                {
+                    'id': 'stopping-areas',
+                    'type': 'fill',
+                    'source': 'maritime-tiles',
+                    'source-layer': 'merged_polygons',
+                    'filter': ['==', 'polygon_type', 'stopping'],
+                    'paint': {
+                        'fill-color': ['case', ['==', ['get', 'maneuver_area'], true], '#8b5cf6', '#3b82f6'],
+                        'fill-opacity': 0.6
+                    }
+                },
+                
+                // Movement area outlines
+                {
+                    'id': 'movement-outlines',
+                    'type': 'line',
+                    'source': 'maritime-tiles',
+                    'source-layer': 'merged_polygons',
+                    'filter': ['all', ['==', 'polygon_type', 'movement'], ['!=', 'maneuver_area', true]],
+                    'paint': {
+                        'line-color': '#ea580c',
+                        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 8, 1, 12, 1.5],
+                        'line-opacity': 0.7
+                    }
+                },
+                
+                // Stopping area outlines
+                {
+                    'id': 'stopping-outlines',
+                    'type': 'line',
+                    'source': 'maritime-tiles',
+                    'source-layer': 'merged_polygons',
+                    'filter': ['all', ['==', 'polygon_type', 'stopping'], ['!=', 'maneuver_area', true]],
+                    'paint': {
+                        'line-color': '#1d4ed8',
+                        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 0.5, 8, 1, 12, 1.5],
+                        'line-opacity': 0.7
+                    }
+                },
+                
+                // Maneuver area outlines (special highlighting)
+                {
+                    'id': 'maneuver-outlines',
+                    'type': 'line',
+                    'source': 'maritime-tiles',
+                    'source-layer': 'merged_polygons',
+                    'filter': ['==', 'maneuver_area', true],
+                    'paint': {
+                        'line-color': '#dc2626',
+                        'line-width': ['interpolate', ['linear'], ['zoom'], 0, 1, 8, 2, 12, 3],
+                        'line-opacity': 0.8
+                    }
+                }
+            ];
+        }
+
+        // Layer control functions
+        function setupLayerControls() {
+            const controls = {
+                'toggle-openstreetmap': ['openstreetmap'],
+                'toggle-openseamap': ['openseamap'],
+                'toggle-movement': ['movement-areas', 'movement-outlines'],
+                'toggle-stopping': ['stopping-areas', 'stopping-outlines'],
+                'toggle-maneuver': ['maneuver-outlines']
+            };
+            
+            Object.entries(controls).forEach(([toggleId, layerIds]) => {
+                const toggleElement = document.getElementById(toggleId);
+                if (toggleElement) {
+                    toggleElement.addEventListener('change', function(e) {
+                        const visibility = e.target.checked ? 'visible' : 'none';
+                        layerIds.forEach(layerId => {
+                            if (map.getLayer(layerId)) {
+                                map.setLayoutProperty(layerId, 'visibility', visibility);
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
+        // Click handlers for polygon information
+        function setupClickHandlers() {
+            map.on('click', function(e) {
+                const features = map.queryRenderedFeatures(e.point);
+                
+                console.log('=== MAP CLICK DEBUG ===');
+                console.log('Click coordinates:', e.lngLat);
+                console.log('All features found:', features.length);
+                
+                if (features.length === 0) return;
+                
+                // Check for ships first
+                const shipFeature = features.find(f => f.layer.id === 'ships');
+                if (shipFeature) {
+                    showShipInfo(shipFeature.properties);
+                    return;
+                }
+                
+                // Then check for maritime polygons
+                const polygonFeature = features.find(f => f.sourceLayer === 'merged_polygons');
+                if (polygonFeature) {
+                    const props = polygonFeature.properties;
+                    console.log('Polygon feature selected:', polygonFeature.layer.id, props);
+                    
+                    let content = `<div class="popup-content">`;
+                    content += `<strong>Maritime Area</strong><br>`;
+                    content += `<strong>Type:</strong> ${props.polygon_type}<br>`;
+                    content += `<strong>Points:</strong> ${props.num_points || 'N/A'}<br>`;
+                    content += `<strong>Unique Vessels:</strong> ${props.num_uniq_mmsis || 'N/A'}<br>`;
+                    content += `<strong>Maneuver Area:</strong> ${props.maneuver_area ? 'Yes' : 'No'}<br>`;
+                    content += `<strong>Area ID:</strong> ${props.id || 'N/A'}`;
+                    content += `</div>`;
+                    
+                    new maplibregl.Popup()
+                        .setLngLat(e.lngLat)
+                        .setHTML(content)
+                        .addTo(map);
+                }
+            });
+        }
+
+        // Hover effects for interactive layers
+        function setupHoverEffects() {
+            const interactiveLayers = [
+                'movement-areas', 'stopping-areas', 'ships'
+            ];
+            
+            interactiveLayers.forEach(layerId => {
+                map.on('mouseenter', layerId, () => {
+                    map.getCanvas().style.cursor = 'pointer';
+                });
+                
+                map.on('mouseleave', layerId, () => {
+                    map.getCanvas().style.cursor = '';
+                    if (layerId === 'ships') {
+                        hideShipInfo();
+                    }
+                });
+            });
+        }
+
+        // Ship-specific event handlers
+        function setupShipHandlers() {
+            map.on('click', 'ships', (e) => {
+                const feature = e.features[0];
+                showShipInfo(feature.properties);
+            });
+
+            map.on('mouseenter', 'ships', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+
+            map.on('mouseleave', 'ships', () => {
+                map.getCanvas().style.cursor = '';
+                hideShipInfo();
+            });
+        }
+
+        // Ship loading and display functions
         async function loadShips() {
             try {
                 const bounds = map.getBounds();
@@ -203,8 +629,6 @@
                 }));
 
                 console.log(`Processing ${ships.length} ships`);
-                console.log('Sample ship:', ships[0]);
-                console.log('Sample feature:', features[0]);
 
                 // Update ships source
                 map.getSource('ships').setData({
@@ -216,9 +640,10 @@
                 shipCount = features.length;
                 document.getElementById('ship-count').textContent = shipCount;
                 
-                console.log(`Loaded ${shipCount} ships with ${features.length} features`);
+                console.log(`Loaded ${shipCount} ships`);
             } catch (error) {
                 console.error('Error loading ships:', error);
+                document.getElementById('ship-count').textContent = 'Error';
             }
         }
 
