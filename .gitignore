@@ -2,3 +2,5 @@
 static/
 /test
 test/
+/target
+target/
